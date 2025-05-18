@@ -1,0 +1,43 @@
+#Stephen Bangs
+#Lab 3 Makefile - PSargon
+#5/18/25 
+#Makefile for the psargon program for CS333 - reading, verifying, cracking(?) argon2 passwords from files.
+#Also cleans, and tars files using make clean and make tar commands.
+#added a git lazy command for source control, though I mostly still commit manually.
+
+DEBUG = -g3 -O0
+
+CFLAGS = -Wall -Wextra -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror
+
+CC = gcc
+
+psargon = psargon
+
+TARGETS = $(psargon)
+CSRCS = $(psargon).c
+COBJS = $(psargon).o
+
+all: ${TARGETS}
+
+.PHONY: clean tar
+
+$(COBJS): $(CSRCS)
+	$(CC) $(CFLAGS) -c $(@:.o=.c)
+
+$(TARGETS): $(COBJS)
+	$(CC) $(@).o -o $(@)
+
+clean:
+	rm -f $(COBJS) $(TARGETS) *~
+
+LAB = 03
+TAR_FILE = stbangs_Lab$(LAB).tar.gz
+
+tar:
+	rm -f $(TAR_FILE)
+	tar cvfa $(TAR_FILE) ?akefile *.c
+	tar tvaf $(TAR_FILE)
+
+git lazy:
+	git add *.[ch] ?akefile
+	git commit -m "lazy make git commit"
