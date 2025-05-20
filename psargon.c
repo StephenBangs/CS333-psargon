@@ -333,5 +333,41 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&tv_end, NULL);
 	vlog("threads joined");
 
+	//print cracked and failed
+	fprintf(out_fp, "TOTALS:");
+	for(int i = 0; i < nthreads; i++) {
+		total_c += stats[i].cracked;
+		total_f += stats[i].failed;
+		fprintf(out_fp, " t%d:%zu/%zu", i, stats[i].cracked, stats[i].failed);
+	}
+	
+	//print totals
+	fprintf(out_fp, "   TOTAL:%zu/%zu\n", total_c, total_f);
+
+	//free memory
+	
+	if(hashes) {
+		for(int i = 0; i < nhashes; i++) {
+			free(hashes[i]);
+		}
+	free(hashes);
+	}
+
+	if(passwords) {
+		for(int i = 0; i < npwds; i++) {
+			if(passwords[i]) {	
+				free(passwords[i]);
+			}
+		}
+	free(passwords);
+	}
+	
+	//TODO
+	//close fd's
+	if(ofile) fclose(out_fp);
+	if(log_fp && log_fp != stderr) {
+		fclose(log_fp);
+	}
+	
 	return EXIT_SUCCESS;
-}
+}//end main
