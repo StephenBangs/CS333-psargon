@@ -228,10 +228,10 @@ int main(int argc, char *argv[]) {
 	//storing ragged array
 	int nhashes = 0;
 	int npwds = 0;
-	char **hashes = NULL
+	char **hashes = NULL;
 	char **passwords = NULL;
 	//Threading vars
-	pthread_t thread[MAX_THREADS];
+	pthread_t threads[MAX_THREADS];
 	struct thread_stats stats[MAX_THREADS] = {{0}};
 	struct thread_args args[MAX_THREADS];
 	//totals var
@@ -241,6 +241,10 @@ int main(int argc, char *argv[]) {
 	int opt;
 	
 	log_fp = stderr;
+
+	//TODO
+	total_c++;
+	total_f++;
 
 
 	while ((opt = getopt(argc, argv, "h:p:o:l:t:vH")) != -1) {
@@ -306,7 +310,8 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&tv_start, NULL);
 	for(int i = 0; i < nthreads; i++) {
 		args[i].thread_id = i;
-		args[i].total_hashes = hashes;
+		args[i].total_hashes = (size_t)nhashes;
+		args[i].hashes = hashes;
 		args[i].passwords = passwords;
 		args[i].num_passwords = (size_t)npwds;
 		args[i].out_fp = out_fp;
@@ -317,6 +322,16 @@ int main(int argc, char *argv[]) {
 			exit(EXIT_FAILURE);
 		}
 	}
+	gettimeofday(&tv_end, NULL);
+	vlog("Threads created\n");
+
+	//wait for all threads to complete
+	for(int i = 0; i < nthreads; i++) {
+		pthread_join(threads[i], NULL);
+
+	}
+	gettimeofday(&tv_end, NULL);
+	vlog("threads joined");
 
 	return EXIT_SUCCESS;
 }
