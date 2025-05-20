@@ -235,17 +235,12 @@ int main(int argc, char *argv[]) {
 	struct thread_stats stats[MAX_THREADS] = {{0}};
 	struct thread_args args[MAX_THREADS];
 	//totals var
-	size_t total_c = 0;
-	size_t total_f = 0;
+	//size_t total_c = 0;
+	//size_t total_f = 0;
 	//getopt
 	int opt;
 	
 	log_fp = stderr;
-
-	//TODO
-	total_c++;
-	total_f++;
-
 
 	while ((opt = getopt(argc, argv, "h:p:o:l:t:vH")) != -1) {
 		switch(opt) {
@@ -334,40 +329,40 @@ int main(int argc, char *argv[]) {
 	vlog("threads joined");
 
 	//print cracked and failed
-	fprintf(out_fp, "TOTALS:");
-	for(int i = 0; i < nthreads; i++) {
-		total_c += stats[i].cracked;
-		total_f += stats[i].failed;
-		fprintf(out_fp, " t%d:%zu/%zu", i, stats[i].cracked, stats[i].failed);
-	}
-	
-	//print totals
-	fprintf(out_fp, "   TOTAL:%zu/%zu\n", total_c, total_f);
+//	fputs("TOTALS:", out_fp);
+//	for(int i = 0; i < nthreads; i++) {
+//		total_c += stats[i].cracked;
+//		total_f += stats[i].failed;
+//		fprintf(out_fp, " t%d:%zu/%zu", i, stats[i].cracked, stats[i].failed);
+//	}
+//	
+//	//print totals
+//	fprintf(out_fp, "   TOTAL:%zu/%zu\n", total_c, total_f);
 
 	//free memory
 	
-	if(hashes) {
-		for(int i = 0; i < nhashes; i++) {
-			free(hashes[i]);
-		}
-	free(hashes);
-	}
-
-	if(passwords) {
-		for(int i = 0; i < npwds; i++) {
-			if(passwords[i]) {	
-				free(passwords[i]);
-			}
-		}
-	free(passwords);
-	}
+	//if(hashes) {
+//		for(int i = 0; i < nhashes; i++) {
+//			free(hashes[i]);
+//		}
+//	free(hashes);
+//	//}
+//
+//	//if(passwords) {
+//		for(int i = 0; i < npwds; i++) {
+//			if(passwords[i]) {	
+//				free(passwords[i]);
+//			}
+//		}
+//	free(passwords);
+	//}
 	
 	//TODO
 	//close fd's
-	if(ofile) fclose(out_fp);
-	if(log_fp && log_fp != stderr) {
-		fclose(log_fp);
-	}
+//	if(ofile) fclose(out_fp);
+//	if(log_fp && log_fp != stderr) {
+//		fclose(log_fp);
+//	}
 	
 	return EXIT_SUCCESS;
 }//end main
