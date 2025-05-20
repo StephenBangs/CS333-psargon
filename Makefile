@@ -7,7 +7,8 @@
 
 DEBUG = -g3 -O0
 
-CFLAGS = -Wall -Wextra -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror
+CFLAGS = -Wall -Wextra -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror -I ~rchaney/argon2/include
+ 
 
 CC = gcc
 
@@ -22,7 +23,7 @@ all: ${TARGETS}
 .PHONY: clean tar
 
 $(COBJS): $(CSRCS)
-	$(CC) $(CFLAGS) -c $(@:.o=.c)
+	$(CC) $(CFLAGS) -c $(@:.o=.c) -L ~rchaney/argon2/lib/x86_64-linux-gnu -largon2
 
 $(TARGETS): $(COBJS)
 	$(CC) $(@).o -o $(@)

@@ -22,7 +22,7 @@
 
 //global for dyn load balancing
 static size_t next_hash = 0;
-static pthread_mutex_t hash_lock = PTHREAD_MUTEX_INIT
+static pthread_mutex_t hash_lock = PTHREAD_MUTEX_INITIALIZER;
 
 //per thread stats
 struct thread_stats{
@@ -48,32 +48,171 @@ static FILE *log_fp = NULL;
 //timing for -v
 static struct timeval tv_start, tv_end;
 
-static long elapsed_us(void) {
-	struct timeval diff;
-	timersub(&tv_end, &tv_start, &diff);
-	return diff.tv_sec * 1000000L + diff.tv_usec;
-}
+//prototypes
+static void vlog(const char *, ...);
+static long elapsed_us(void);
+static void print_help(const char *);
+static int count_lines(const char *);
+static char **create_line_array(char *, int);
+static char **create_ragged_array(const char *, int *);
+//TODO - Threading
+static size_t get_next_hash_index(size_t total);
+static void *worker(void *v);
 
-//capture time, print formatted time
+//capture time, print formatted time for verbose
 static void vlog(const char *fmt, ...) {
+	long us = 0;
+	va_list ap;
+
 	if (!verbose) {
 		return;
 	}
+
 	gettimeofday(&tv_end, NULL);
-	long us = elapsed_us();
+	us = elapsed_us();
 
 	fprintf(log_fp, "%ld: ", us);
-	va_list ap;
 	va_start(ap, fmt);
 	vfprintf(log_fp, fmt, ap);
 	va_end(ap);
 	fputc('\n', log_fp);
 }
 
+static long elapsed_us(void) {
+	struct timeval diff;
+	timersub(&tv_end, &tv_start, &diff);
+	return diff.tv_sec * 1000000L + diff.tv_usec;
+}
+
 static void print_help(const char *prog) {
 	printf("Usage: %s -h hashes-file -p passwords-file [options]\n", prog);
 	exit(EXIT_SUCCESS);
 }
+
+//Ragged array creation fns
+//counting lines in file
+static int count_lines(const char *buf) {
+	int wc = 0;
+	for(const char *p = buf; *p != '\0'; p++) {
+		if (*p == '\n') {
+			wc++;
+		}
+	}
+	return wc;
+}
+
+//creating array of lines
+static char **create_line_array(char *buf, int wc) {
+	char **arr = malloc(wc * sizeof(char *));
+	int index = 0;
+	char *token = strtok(buf, "\n");
+	if (arr == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+
+
+	while (token != NULL && index < wc) {
+		arr[index++] = token;
+		token = strtok(NULL, "\n");
+	}
+	return arr;
+}
+
+//create the ragged array
+static char **create_ragged_array(const char *filename, int *out_count) {
+	char **arr = NULL;
+	int fd = 0;	
+	char *buf = NULL;
+	ssize_t bytes_read = 0;
+	int wc = 0;
+
+	struct stat st;
+	if (stat(filename, &st) != 0) {
+		perror("stat");
+		exit(EXIT_FAILURE);
+	}
+
+	fd = open(filename, O_RDONLY);
+	if (fd < 0) {
+		perror("open");
+		exit(EXIT_FAILURE);
+	}
+
+	buf = calloc(st.st_size + 1, 1);
+	if (buf == NULL) {
+		perror("Calloc");
+		exit(EXIT_FAILURE);
+	}
+
+	bytes_read = read(fd, buf, st.st_size);
+	if (bytes_read != st.st_size) {
+		perror("Read");
+		exit(EXIT_FAILURE);
+	}
+	close(fd);
+
+	gettimeofday(&tv_start, NULL);
+	wc = count_lines(buf);
+	gettimeofday(&tv_end, NULL);
+	vlog("create_ragged_Array %s", filename);
+
+
+	gettimeofday(&tv_start, NULL);
+	arr = create_line_array(buf, wc);
+	gettimeofday(&tv_end, NULL);
+
+	vlog("\tcount_lines word count: %d", wc);
+
+	vlog("\tcreate_line_array word count: %d", wc);
+
+	*out_count = wc;
+	return arr;
+}
+
+
+static size_t get_next_hash_index(size_t total) {
+	size_t index = 0;
+
+	(void) total;
+	pthread_mutex_lock(&hash_lock);
+	index = next_hash++;
+	pthread_mutex_unlock(&hash_lock);
+	return index;
+}
+
+//TODO
+static void *worker(void *v) {
+	struct thread_args *a = (struct thread_args *)v;
+	size_t index = 0;
+	const char *hash = NULL;
+	int ok = 0;
+
+	while(1) {
+		index = get_next_hash_index(a->total_hashes);
+		if(index >= a->total_hashes) {
+			break;
+		}
+		hash = a->hashes[index];
+		ok = 0;
+
+		//loop thru all passwords
+		for(size_t j = 0; j < a->num_passwords; j++) {
+			if(argon2_verify(hash, a->passwords[j], strlen(a->passwords[j]), Argon2_id) == ARGON2_OK) {
+				fprintf(a->out_fp, "CRACKED: %s %s\n", a->passwords[j], hash);
+				a->stats[a->thread_id].cracked++;
+				ok = 1;
+				break;
+			}
+		}
+		if (!ok) {
+			fprintf(a->out_fp, "FAILED:  %s\n", hash);
+			a->stats[a->thread_id].failed++;
+		}
+	}
+	return NULL;
+}
+
 
 int main(int argc, char *argv[]) {
 
@@ -86,9 +225,23 @@ int main(int argc, char *argv[]) {
 	//# threads
 	int nthreads = 1;
 	FILE *out_fp = stdout;
+	//storing ragged array
+	int nhashes = 0;
+	int npwds = 0;
+	char **hashes = NULL
+	char **passwords = NULL;
+	//Threading vars
+	pthread_t thread[MAX_THREADS];
+	struct thread_stats stats[MAX_THREADS] = {{0}};
+	struct thread_args args[MAX_THREADS];
+	//totals var
+	size_t total_c = 0;
+	size_t total_f = 0;
+	//getopt
+	int opt;
+	
 	log_fp = stderr;
 
-	int opt;
 
 	while ((opt = getopt(argc, argv, "h:p:o:l:t:vH")) != -1) {
 		switch(opt) {
@@ -104,16 +257,20 @@ int main(int argc, char *argv[]) {
 				fprintf(stderr, "case o\n");
 				ofile = optarg;
 				break;
-			//TODO
 			case 'l':
 				fprintf(stderr, "case l\n");
+				log_fp = fopen(optarg, "w");
+				if(!log_fp) {
+					perror("fopen");
+					exit(EXIT_FAILURE);
+				}
 				break;
 			case 't':
 				fprintf(stderr, "case t\n");
 				nthreads = atoi(optarg);
 				if (nthreads < 1 || nthreads > MAX_THREADS) {
 					fprintf(stderr, "Please enter a thread value from 1 to 16.\n");
-					EXIT(EXIT_FAILURE);				
+					exit(EXIT_FAILURE);				
 				}
 				break;
 			case 'v':
@@ -141,10 +298,25 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	//TODO REMOVE
-	argc++;
-	argc--;
-	argv++;
-	argv--;
+	//load hashes into ragged arrays	
+	hashes = create_ragged_array(hfile, &nhashes);
+	passwords = create_ragged_array(pfile, &npwds);
+
+	///create worker threads
+	gettimeofday(&tv_start, NULL);
+	for(int i = 0; i < nthreads; i++) {
+		args[i].thread_id = i;
+		args[i].total_hashes = hashes;
+		args[i].passwords = passwords;
+		args[i].num_passwords = (size_t)npwds;
+		args[i].out_fp = out_fp;
+		args[i].stats = stats;
+
+		if (pthread_create(&threads[i], NULL, worker, &args[i]) != 0) {
+			perror("pthread_create");
+			exit(EXIT_FAILURE);
+		}
+	}
+
 	return EXIT_SUCCESS;
 }
