@@ -28,7 +28,7 @@ $(TARGETS): $(COBJS)
 	$(CC) $(@).o -o $(@)
 
 clean:
-	rm -f $(COBJS) $(TARGETS) *~
+	rm -f $(COBJS) $(TARGETS) *~ *.err *.dat *.out *.h *.time
 
 LAB = 03
 TAR_FILE = stbangs_Lab$(LAB).tar.gz
