@@ -91,29 +91,38 @@ static void print_help(const char *prog) {
 
 //Ragged array creation fns
 //counting lines in file
-static int count_lines(const char *buf) {
+static int count_lines(const char *string) {
 	int wc = 0;
-	for(const char *p = buf; *p != '\0'; p++) {
-		if (*p == '\n') {
+	char *s = string;
+
+	for(int i = 0; *s; ++i, s++) {
+		if (*s == '\n') {
 			wc++;
 		}
 	}
+//	for(const char *p = buf; *p != '\0'; p++) {
+//		if (*p == '\n') {
+//			wc++;
+//		}
+//	}
 	return wc;
 }
 
 //creating array of lines
 static char **create_line_array(char *buf, int wc) {
 	char **arr = malloc(wc * sizeof(char *));
-	int index = 0;
 	char *token = strtok(buf, "\n");
+	int index = 0;
 	if (arr == NULL) {
 		perror("malloc");
 		exit(EXIT_FAILURE);
 	}
 
-
-	while (token != NULL && index < wc) {
-		arr[index++] = token;
+	//TODO
+//	while (token != NULL && index < wc) {
+	while (token) {
+		arr[index]= token;
+		index++;
 		token = strtok(NULL, "\n");
 	}
 	return arr;
@@ -122,7 +131,7 @@ static char **create_line_array(char *buf, int wc) {
 //create the ragged array
 static char **create_ragged_array(const char *filename, int *out_count) {
 	char **arr = NULL;
-	int fd = 0;	
+	int fd = -1;	
 	char *buf = NULL;
 	ssize_t bytes_read = 0;
 	int wc = 0;
@@ -156,17 +165,14 @@ static char **create_ragged_array(const char *filename, int *out_count) {
 	wc = count_lines(buf);
 	gettimeofday(&tv_end, NULL);
 	vlog("create_ragged_Array %s", filename);
-
+	*out_count = wc;
 
 	gettimeofday(&tv_start, NULL);
 	arr = create_line_array(buf, wc);
 	gettimeofday(&tv_end, NULL);
-
 	vlog("\tcount_lines word count: %d", wc);
-
 	vlog("\tcreate_line_array word count: %d", wc);
 
-	*out_count = wc;
 	return arr;
 }
 
@@ -235,8 +241,8 @@ int main(int argc, char *argv[]) {
 	struct thread_stats stats[MAX_THREADS] = {{0}};
 	struct thread_args args[MAX_THREADS];
 	//totals var
-	//size_t total_c = 0;
-	//size_t total_f = 0;
+	size_t total_c = 0;
+	size_t total_f = 0;
 	//getopt
 	int opt;
 	
@@ -329,40 +335,38 @@ int main(int argc, char *argv[]) {
 	vlog("threads joined");
 
 	//print cracked and failed
-//	fputs("TOTALS:", out_fp);
-//	for(int i = 0; i < nthreads; i++) {
-//		total_c += stats[i].cracked;
-//		total_f += stats[i].failed;
-//		fprintf(out_fp, " t%d:%zu/%zu", i, stats[i].cracked, stats[i].failed);
-//	}
-//	
-//	//print totals
-//	fprintf(out_fp, "   TOTAL:%zu/%zu\n", total_c, total_f);
+	fputs("TOTALS:", out_fp);
+	for(int i = 0; i < nthreads; i++) {
+		total_c += stats[i].cracked;
+		total_f += stats[i].failed;
+		fprintf(out_fp, " t%d:%zu/%zu", i, stats[i].cracked, stats[i].failed);
+	}
+	
+	//print totals
+	fprintf(out_fp, "   TOTAL:%zu/%zu\n", total_c, total_f);
 
 	//free memory
 	
 	//if(hashes) {
-//		for(int i = 0; i < nhashes; i++) {
-//			free(hashes[i]);
-//		}
-//	free(hashes);
+	for(int i = 0; i < nhashes; i++) {
+		free(hashes[i]);
+	}
+	free(hashes);
 //	//}
 //
 //	//if(passwords) {
-//		for(int i = 0; i < npwds; i++) {
-//			if(passwords[i]) {	
-//				free(passwords[i]);
-//			}
-//		}
-//	free(passwords);
+	for(int i = 0; i < npwds; i++) {
+			free(passwords[i]);
+	}
+	free(passwords);
 	//}
 	
 	//TODO
 	//close fd's
-//	if(ofile) fclose(out_fp);
-//	if(log_fp && log_fp != stderr) {
-//		fclose(log_fp);
-//	}
+	if(ofile) fclose(out_fp);
+	if(log_fp && log_fp != stderr) {
+		fclose(log_fp);
+	}
 	
 	return EXIT_SUCCESS;
 }//end main
