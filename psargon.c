@@ -12,9 +12,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <pthread.h>
-//TODO
 #include <errno.h>
-//TODO
 #include <argon2.h>
 #include <fcntl.h>
 
@@ -48,14 +46,18 @@ static FILE *log_fp = NULL;
 //timing for -v
 static struct timeval tv_start, tv_end;
 
-//prototypes
+//prototypes 
+//verbose
 static void vlog(const char *, ...);
+//elapsed time
 static long elapsed_us(void);
+//-H option
 static void print_help(const char *);
+//create ragged array from files
 static int count_lines(char *);
 static char **create_line_array(char *, int);
 static char **create_ragged_array(char *, int *);
-//TODO - Threading
+//threading
 static size_t get_next_hash_index(size_t total);
 static void *worker(void *v);
 
@@ -63,14 +65,17 @@ static void *worker(void *v);
 static void vlog(const char *fmt, ...) {
 	long us = 0;
 	va_list ap;
-
+	
+	//do nothing if not enabled
 	if (!verbose) {
 		return;
 	}
 
+	//grab time of day
 	gettimeofday(&tv_end, NULL);
 	us = elapsed_us();
 
+	//printing time with verbose - basic format from stack overflow
 	fprintf(log_fp, "%ld: ", us);
 	va_start(ap, fmt);
 	vfprintf(log_fp, fmt, ap);
@@ -78,18 +83,21 @@ static void vlog(const char *fmt, ...) {
 	fputc('\n', log_fp);
 }
 
+//return time
 static long elapsed_us(void) {
 	struct timeval diff;
 	timersub(&tv_end, &tv_start, &diff);
 	return diff.tv_sec * 1000000L + diff.tv_usec;
 }
 
+//-H print and exit option
 static void print_help(const char *prog) {
 	printf("Usage: %s -h hashes-file -p passwords-file [options]\n", prog);
 	exit(EXIT_SUCCESS);
 }
 
-//Ragged array creation fns
+//Ragged array creation fns - used rchaney's ray-file.c for framework
+
 //counting lines in file
 static int count_lines(char *string) {
 	int wc = 0;
@@ -117,8 +125,6 @@ static char **create_line_array(char *buf, int wc) {
 		perror("malloc");
 		exit(EXIT_FAILURE);
 	}
-
-	//TODO
 //	while (token != NULL && index < wc) {
 	while (token) {
 		arr[index]= token;
@@ -135,25 +141,28 @@ static char **create_ragged_array(char *filename, int *out_count) {
 	char *buf = NULL;
 	ssize_t bytes_read = 0;
 	int wc = 0;
-
 	struct stat st;
+	
+	//error handling for incorrect files
 	if (stat(filename, &st) != 0) {
 		perror("stat");
 		exit(EXIT_FAILURE);
 	}
 
+	//open file, and error handling
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
 		perror("open");
 		exit(EXIT_FAILURE);
 	}
 
+	//allocate buffer
 	buf = calloc(st.st_size + 1, 1);
 	if (buf == NULL) {
 		perror("Calloc");
 		exit(EXIT_FAILURE);
 	}
-
+	//read file, store in bytes_read
 	bytes_read = read(fd, buf, st.st_size);
 	if (bytes_read != st.st_size) {
 		perror("Read");
@@ -161,12 +170,14 @@ static char **create_ragged_array(char *filename, int *out_count) {
 	}
 	close(fd);
 
+	//get lines in the file w/ timing if -v enabled
 	gettimeofday(&tv_start, NULL);
 	wc = count_lines(buf);
 	gettimeofday(&tv_end, NULL);
 	vlog("create_ragged_Array %s", filename);
 	*out_count = wc;
 
+	//create ragged array
 	gettimeofday(&tv_start, NULL);
 	arr = create_line_array(buf, wc);
 	gettimeofday(&tv_end, NULL);
@@ -176,7 +187,7 @@ static char **create_ragged_array(char *filename, int *out_count) {
 	return arr;
 }
 
-
+//mutex protecting the file from multiple threads reading at once
 static size_t get_next_hash_index(size_t total) {
 	size_t index = 0;
 
@@ -187,7 +198,7 @@ static size_t get_next_hash_index(size_t total) {
 	return index;
 }
 
-//TODO
+//main worker fn for threading
 static void *worker(void *v) {
 	struct thread_args *a = (struct thread_args *)v;
 	size_t index = 0;
@@ -195,14 +206,16 @@ static void *worker(void *v) {
 	int ok = 0;
 
 	while(1) {
+		//go thru each hash index, until last hash index
 		index = get_next_hash_index(a->total_hashes);
 		if(index >= a->total_hashes) {
 			break;
 		}
 		hash = a->hashes[index];
+		//fail flag
 		ok = 0;
 
-		//loop thru all passwords
+		//loop thru all passwords, check if valid Argon2 hash/password
 		for(size_t j = 0; j < a->num_passwords; j++) {
 			if(argon2_verify(hash, a->passwords[j], strlen(a->passwords[j]), Argon2_id) == ARGON2_OK) {
 				fprintf(a->out_fp, "CRACKED: %s %s\n", a->passwords[j], hash);
@@ -211,6 +224,7 @@ static void *worker(void *v) {
 				break;
 			}
 		}
+		//if not valid, print fail, no PW found in dictionary attack
 		if (!ok) {
 			fprintf(a->out_fp, "FAILED:  %s\n", hash);
 			a->stats[a->thread_id].failed++;
@@ -245,23 +259,27 @@ int main(int argc, char *argv[]) {
 	size_t total_f = 0;
 	//getopt
 	int opt;
-	
+	//defaulting log to stderr
 	log_fp = stderr;
 
 	while ((opt = getopt(argc, argv, "h:p:o:l:t:vH")) != -1) {
 		switch(opt) {
+			//hash file 
 			case 'h':
 				fprintf(stderr, "case h\n");
 				hfile = optarg;
 				break;
+			//password file
 			case 'p':
 				fprintf(stderr, "case p\n");
 				pfile = optarg;
 				break;
+			//output file
 			case 'o':
 				fprintf(stderr, "case o\n");
 				ofile = optarg;
 				break;
+			//log file 
 			case 'l':
 				fprintf(stderr, "case l\n");
 				log_fp = fopen(optarg, "w");
@@ -270,6 +288,7 @@ int main(int argc, char *argv[]) {
 					exit(EXIT_FAILURE);
 				}
 				break;
+			//thread #
 			case 't':
 				fprintf(stderr, "case t\n");
 				nthreads = atoi(optarg);
@@ -278,23 +297,27 @@ int main(int argc, char *argv[]) {
 					exit(EXIT_FAILURE);				
 				}
 				break;
+			//verbose
 			case 'v':
 				fprintf(stderr, "case v\n");
 				verbose = 1;
 				break;
+			//help option
 			case 'H':
 				print_help(argv[0]);
 				break;
+			//if weird, display help
 			default:
 				print_help(argv[0]);
 				break;
 		}
 	}
-
+	
+	//if option arguments are no good, then print help
 	if (!hfile || !pfile) {
 		print_help(argv[0]);
 	}
-
+	//open output file
 	if(ofile) {
 		out_fp = fopen(ofile, "w");
 		if(!out_fp) {
@@ -303,7 +326,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	//load hashes into ragged arrays	
+	//read files and load hashes/passwords into ragged arrays	
 	hashes = create_ragged_array(hfile, &nhashes);
 	passwords = create_ragged_array(pfile, &npwds);
 
@@ -317,7 +340,7 @@ int main(int argc, char *argv[]) {
 		args[i].num_passwords = (size_t)npwds;
 		args[i].out_fp = out_fp;
 		args[i].stats = stats;
-
+		//make threads
 		if (pthread_create(&threads[i], NULL, worker, &args[i]) != 0) {
 			perror("pthread_create");
 			exit(EXIT_FAILURE);
