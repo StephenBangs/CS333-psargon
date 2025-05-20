@@ -52,9 +52,9 @@ static struct timeval tv_start, tv_end;
 static void vlog(const char *, ...);
 static long elapsed_us(void);
 static void print_help(const char *);
-static int count_lines(const char *);
+static int count_lines(char *);
 static char **create_line_array(char *, int);
-static char **create_ragged_array(const char *, int *);
+static char **create_ragged_array(char *, int *);
 //TODO - Threading
 static size_t get_next_hash_index(size_t total);
 static void *worker(void *v);
@@ -91,7 +91,7 @@ static void print_help(const char *prog) {
 
 //Ragged array creation fns
 //counting lines in file
-static int count_lines(const char *string) {
+static int count_lines(char *string) {
 	int wc = 0;
 	char *s = string;
 
@@ -129,7 +129,7 @@ static char **create_line_array(char *buf, int wc) {
 }
 
 //create the ragged array
-static char **create_ragged_array(const char *filename, int *out_count) {
+static char **create_ragged_array(char *filename, int *out_count) {
 	char **arr = NULL;
 	int fd = -1;	
 	char *buf = NULL;
@@ -346,22 +346,25 @@ int main(int argc, char *argv[]) {
 	fprintf(out_fp, "   TOTAL:%zu/%zu\n", total_c, total_f);
 
 	//free memory
-	
-	//if(hashes) {
-	for(int i = 0; i < nhashes; i++) {
-		free(hashes[i]);
-	}
+	free(hashes[0]);
 	free(hashes);
+	free(passwords[0]);
+	free(passwords);
+
+	//if(hashes) {
+//	for(int i = 0; i < nhashes; i++) {
+//		free(hashes[i]);
+//	}
+//	free(hashes);
 //	//}
 //
 //	//if(passwords) {
-	for(int i = 0; i < npwds; i++) {
-			free(passwords[i]);
-	}
-	free(passwords);
+//	for(int i = 0; i < npwds; i++) {
+//			free(passwords[i]);
+//	}
+//	free(passwords);
 	//}
 	
-	//TODO
 	//close fd's
 	if(ofile) fclose(out_fp);
 	if(log_fp && log_fp != stderr) {
